@@ -12,11 +12,6 @@ const MAX_PROG_BYTES: usize = 3584;
 const START_MEM_LOC: usize = 0x200; // 512th index
 
 
-
-macro_rules! execute {
-    () => {};
-}
-
 pub struct Interpreter { 
     stack: [u16; MAX_STACK_SIZE], // 16 16-bit values
     pc: u16,
@@ -46,7 +41,7 @@ impl Interpreter {
         self.bus.mem[START_MEM_LOC..max_prog_idx].copy_from_slice(rom_bytes)
     }
 
-    
+
 
 
 }
