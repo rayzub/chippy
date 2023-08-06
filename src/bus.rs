@@ -52,7 +52,7 @@ impl Bus {
         (self.mem[pc] << 8 | self.mem[pc+1]) as u16
     }
 
-    pub fn update_ram(&self) {}
+    //pub fn update_ram(&self) {}
     pub fn toggle_key(&mut self, pos: usize) {
         let pos_val = self.keyboard[pos];
         self.keyboard[pos] = !pos_val;
