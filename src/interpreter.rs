@@ -1,4 +1,4 @@
-use crate::{bus::Bus, START_MEM_LOC};
+use crate::{bus::Bus, START_MEM_LOC, drivers::display::{DISPLAY_WIDTH, DISPLAY_HEIGHT}};
 
 
 
@@ -12,7 +12,7 @@ pub struct Interpreter {
     sp: usize,
     stack: [u16; MAX_STACK_SIZE], // 16 16-bit values
     pc: u16,
-    bus: Bus,
+    pub bus: Bus,
     v: [u8; REGISTER_NUM], // V0 -> VF
     i: u16,
     dt: u8,
@@ -66,7 +66,6 @@ impl Interpreter {
         let vx = self.v[x];
         let vy = self.v[y];
 
-        
         let inc = match ident {
             0 => {
                 match n {
@@ -142,19 +141,20 @@ impl Interpreter {
                         self.v[x] = res as u8;
                     }
                     5 => {
-                        if vx > vy {
-                            self.v[x] = vy - vx;
-                            self.v[0xF] = 1;
-                        } else {
-                            self.v[x] = vx - vy;
-                            self.v[0xF] = 0;
-                        }
+                        self.v[0xF] = if vx > vy { 1 } else { 0 };
+                        self.v[x] = vx - vy;
                     }
                     6 => {
                         self.v[0xF] = vx & 1;
                         self.v[x] = vx >> 1;
                     }
                     7 => {
+                        self.v[0xF] = if vy > vx { 1 } else { 0 };
+                        self.v[x] = vy - vx;
+                    }
+                    0xE => {
+                        self.v[0xF] = vx & 1;
+                        self.v[x] = vx << 1;
                     }
                     _ => {}
 
@@ -182,6 +182,26 @@ impl Interpreter {
             }
             // @todo
             0xD => {
+                // between 0 and 16 8 bit wide rows
+                for row in 0..n {
+                    let row_addr = self.i + row as u16;
+                    let sprite_row_data = self.bus.mem[row_addr as usize];
+
+                    // 0 -> 8 columns
+                    for column in 0..8 {
+                        // ex. sprite_row_data 1100 0110
+                        if sprite_row_data & (0b1000000 >> column) == 1 {
+                            let adj_pixels_width = (vx+column) as usize % DISPLAY_WIDTH;
+                            let adj_pixels_height = (vy+(row as u8)) as usize % DISPLAY_HEIGHT; 
+
+                            let pixel_loc = adj_pixels_width + DISPLAY_WIDTH * adj_pixels_height;
+                            self.v[0xF] = if self.bus.display.bits[pixel_loc] == true { 1 } else { 0 };
+                            self.bus.display.bits[pixel_loc] ^= true;
+                            self.bus.display.draw();
+                        }
+                    }
+                }
+
                 ProgramCounterAction::Next
             }
             0xE => {
@@ -213,6 +233,51 @@ impl Interpreter {
                     _ => {
                         ProgramCounterAction::Halt
                     }
+                }
+            }
+            0xF => {
+                match kk {
+                    0x07 => {
+                        self.v[x] = self.dt;
+                        ProgramCounterAction::Next
+                    },
+                    // @todo: add wait with synchronisation rather than loop
+                    0x0A => {
+                        let mut any_pressed = false;
+                        for i in 0..self.bus.keyboard.len() {
+                            let pressed = self.bus.is_key_pressed(i);
+                            if let Some(pressed) = Some(true) {
+                                self.v[x] = self.bus.keyboard[i] as u8;
+                                any_pressed = true;
+                            }
+                        }
+
+                        if !any_pressed {
+                            ProgramCounterAction::NoOp
+                        } else {
+                            ProgramCounterAction::Next
+                        }
+                        
+                    }
+                    0x15 => {
+                        self.dt = vx;
+                        ProgramCounterAction::Next
+                    }
+                    0x18 => {
+                        self.st = vx;
+                        ProgramCounterAction::Next
+                    }
+                    0x1E => {
+                        let vx_u16 = self.v[x] as u16;
+                        self.i = self.i + vx_u16;
+                        ProgramCounterAction::Next
+                    }
+                    // @todo
+                    0x29 => {ProgramCounterAction::NoOp},
+                    0x33 => {ProgramCounterAction::NoOp},
+                    0x55 => {ProgramCounterAction::NoOp},
+                    0x65 => {ProgramCounterAction::NoOp},
+                    _ => {ProgramCounterAction::Halt}
                 }
             }
             _ => {

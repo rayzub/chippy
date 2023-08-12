@@ -34,7 +34,7 @@ impl Bus {
     pub fn new(ctx: &Sdl) -> Self {
         let mut mem = [0; MAX_MEM_SIZE];
         // Set reserved space for sprite fontset
-        mem.copy_from_slice(&FONTSET);
+        mem[..FONTSET.len()].copy_from_slice(&FONTSET);
 
         let video_ctx = ctx.video().unwrap();
         let audio_ctx = ctx.audio().unwrap();
