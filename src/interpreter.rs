@@ -44,11 +44,25 @@ impl Interpreter {
     pub fn load_program(&mut self, rom_bytes: &[u8]) -> () {
         let max_prog_idx = START_MEM_LOC + rom_bytes.len();
         self.bus.mem[START_MEM_LOC..max_prog_idx].copy_from_slice(rom_bytes)
-    } 
+    }
+
+    pub fn tick(&mut self) {
+        for _ in 0..15 {
+            self.execute();
+        }
+
+        if self.dt > 0 {
+            self.dt -= 1;
+        }
+
+        if self.st > 0 {
+            self.st -= 1;
+        }
+    }
 
     // @todo: work on macro_rules! for execution of instruction
     // @todo: handle display instructions
-    pub fn execute(&mut self) {
+    fn execute(&mut self) {
         let opcode = self.bus.get_next_byte(self.pc as usize);
         let nibbles = (
             ((opcode & 0xF000) >> 12) as u8,
@@ -65,7 +79,6 @@ impl Interpreter {
 
         let vx = self.v[x];
         let vy = self.v[y];
-
         let inc = match ident {
             0 => {
                 match n {
@@ -121,7 +134,7 @@ impl Interpreter {
             }
             7 => {
                 let vx = self.v[x];
-                self.v[x] = vx + kk;
+                self.v[x] = vx.wrapping_add(kk);
                 ProgramCounterAction::Next
             }
             8 => {
@@ -190,14 +203,13 @@ impl Interpreter {
                     // 0 -> 8 columns
                     for column in 0..8 {
                         // ex. sprite_row_data 1100 0110
-                        if sprite_row_data & (0b1000000 >> column) == 1 {
-                            let adj_pixels_width = (vx+column) as usize % DISPLAY_WIDTH;
-                            let adj_pixels_height = (vy+(row as u8)) as usize % DISPLAY_HEIGHT; 
+                        if sprite_row_data & (0x80 >> column) == 1 {
+                            let x = ((vx as u16)+column) as usize % DISPLAY_WIDTH;
+                            let y = ((vy as u16)+(row as u16)) as usize % DISPLAY_HEIGHT; 
 
-                            let pixel_loc = adj_pixels_width + DISPLAY_WIDTH * adj_pixels_height;
+                            let pixel_loc = x + DISPLAY_WIDTH * y;
                             self.v[0xF] = if self.bus.display.bits[pixel_loc] == true { 1 } else { 0 };
                             self.bus.display.bits[pixel_loc] ^= true;
-                            self.bus.display.draw();
                         }
                     }
                 }
@@ -273,10 +285,38 @@ impl Interpreter {
                         ProgramCounterAction::Next
                     }
                     // @todo
-                    0x29 => {ProgramCounterAction::NoOp},
-                    0x33 => {ProgramCounterAction::NoOp},
-                    0x55 => {ProgramCounterAction::NoOp},
-                    0x65 => {ProgramCounterAction::NoOp},
+                    0x29 => {
+                        self.i = (vx * 5) as u16;
+                        ProgramCounterAction::Next
+                    },
+                    0x33 => {
+                        let vx_f32 = self.v[x] as f32;
+                        let hundreds = (vx_f32 / 100.0).floor() as u8;
+                        let tens = ((vx_f32 / 10.0) % 10.0).floor() as u8;
+                        let ones = (vx_f32 % 10.0) as u8;
+
+                        self.bus.mem[self.i as usize] = hundreds;
+                        self.bus.mem[(self.i + 1) as usize] = tens;
+                        self.bus.mem[(self.i + 2) as usize] = ones;
+
+                        ProgramCounterAction::Next
+                    },
+                    0x55 => {
+                        let mut start_loc = self.i;
+                        for i in 0..=x {
+                            self.bus.mem[start_loc as usize] = self.v[i];
+                            start_loc += 1;
+                        }
+                        ProgramCounterAction::Next
+                    },
+                    0x65 => {
+                        let mut start_loc = self.i;
+                        for i in 0..=x {
+                            self.v[i] = self.bus.mem[start_loc as usize];
+                            start_loc += 1;
+                        }
+                        ProgramCounterAction::Next
+                    },
                     _ => {ProgramCounterAction::Halt}
                 }
             }
@@ -284,18 +324,12 @@ impl Interpreter {
                 ProgramCounterAction::Halt
             }
         };
-
-        if self.dt > 0 {
-            self.dt -= 1;
-        }
-
-        if self.st > 0 {
-            self.st -= 1;
-        }
-
         match inc {
             ProgramCounterAction::Jump(delta) => self.pc += delta,
-            ProgramCounterAction::Next => self.pc += 2,
+            ProgramCounterAction::Next => { 
+                self.pc += 2;
+                println!("{} at pc: {}", opcode, self.pc);
+            },
             ProgramCounterAction::NoOp => {},
             ProgramCounterAction::Halt => {
                 // @todo: dbg + error handling

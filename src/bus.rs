@@ -49,7 +49,9 @@ impl Bus {
     
     pub fn get_next_byte(&self, pc: usize) -> u16 {
         // First byte, Second byte (instructions are 2 bytes long)
-        (self.mem[pc] << 8 | self.mem[pc+1]) as u16
+        let hi = self.mem[pc] as u16;
+        let lo = self.mem[pc+1] as u16;
+        (hi << 8) | lo
     }
 
     //pub fn update_ram(&self) {}

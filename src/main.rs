@@ -47,9 +47,6 @@ fn main() {
     // Initiate loop to execute instructions
     'main: loop {
         // Execute single instruction
-        interpreter.execute();
-
-
         for event in event_pump.poll_iter() {
             match event {
                 Event::KeyDown { keycode, .. } | Event::KeyUp { keycode, ..} => {
@@ -66,5 +63,8 @@ fn main() {
                 _ => {}
             }
         }
+
+        interpreter.tick();
+        interpreter.bus.display.draw();
     }
 }
