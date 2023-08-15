@@ -33,26 +33,26 @@ impl Display {
     }
 
 
-    pub fn draw(&mut self,) {
+    pub fn draw(&mut self) {
         self.canvas.set_draw_color(Color::BLACK);
         self.canvas.clear();
 
 
         self.canvas.set_draw_color(Color::WHITE);
-       for i in 0..self.bits.len() {
-        if self.bits[i] {
-            let x = (i as i32) % (DISPLAY_WIDTH as i32);
-            let y = (i as i32) / (DISPLAY_WIDTH as i32);
-            self.canvas.fill_rect(
-                Rect::new(
-                    x*10,
-                    y*10,
-                    10,
-                    10,
-                )
-            ).unwrap();
+        for i in 0..self.bits.len() {
+            if self.bits[i] {
+                let x = (i as i32) % (DISPLAY_WIDTH as i32);
+                let y = (i as i32) / (DISPLAY_WIDTH as i32);
+                self.canvas.fill_rect(
+                    Rect::new(
+                        x*10,
+                        y*10,
+                        10,
+                        10,
+                    )
+                ).unwrap();
+            }
         }
-       }
 
        self.canvas.present();
     }

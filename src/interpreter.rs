@@ -10,17 +10,17 @@ const MAX_PROG_BYTES: usize = 3584;
 
 pub struct Interpreter { 
     sp: usize,
-    stack: [u16; MAX_STACK_SIZE], // 16 16-bit values
-    pc: u16,
+    stack: Vec<usize>,
+    pc: usize,
     pub bus: Bus,
     v: [u8; REGISTER_NUM], // V0 -> VF
     i: u16,
     dt: u8,
     st: u8,
 }
-
+#[derive(Debug)]
 enum ProgramCounterAction {
-    Jump(u16),
+    Jump(usize),
     Next,
     Halt,
     NoOp,
@@ -31,8 +31,8 @@ impl Interpreter {
     pub fn new(bus: Bus) -> Self {
         Self { 
             sp: 0,
-            stack: [0; MAX_STACK_SIZE],
-            pc: START_MEM_LOC as u16,
+            stack: Vec::new(),
+            pc: START_MEM_LOC,
             bus, 
             v: [0; REGISTER_NUM], 
             i: 0, 
@@ -81,16 +81,16 @@ impl Interpreter {
         let vy = self.v[y];
         let inc = match ident {
             0 => {
-                match n {
-                    0 => {
+                match kk {
+                    0xE0 => {
                         self.bus.display.clear_display();
                         ProgramCounterAction::Next
                     }
-                    0xE => {
-                        self.sp -=1;
-                        let new_pc_val = self.stack[self.sp];
-                        let pc_delta = self.pc - new_pc_val;
-                        ProgramCounterAction::Jump(pc_delta)
+                    0xEE => {
+                        if let Some(ret) = self.stack.pop() {
+                            self.pc = ret;
+                        }
+                        ProgramCounterAction::Next
                     }
                     _ => {
                         ProgramCounterAction::Halt
@@ -98,13 +98,12 @@ impl Interpreter {
                 }
             }
             1 => {
-                self.pc = nnn as u16;
+                self.pc = nnn;
                 ProgramCounterAction::NoOp
             }
             2 => {
-                self.sp += 1;
-                self.stack[self.sp as usize] = self.pc;
-                self.pc = nnn as u16;
+                self.stack.push(self.pc);
+                self.pc = nnn;
                 ProgramCounterAction::NoOp
             }
             3 => {
@@ -154,16 +153,18 @@ impl Interpreter {
                         self.v[x] = res as u8;
                     }
                     5 => {
-                        self.v[0xF] = if vx > vy { 1 } else { 0 };
-                        self.v[x] = vx - vy;
+                        let (res, carry) = vx.overflowing_sub(vy);
+                        self.v[0xF] = if carry { 1 } else { 0 };
+                        self.v[x] = res;
                     }
                     6 => {
                         self.v[0xF] = vx & 1;
                         self.v[x] = vx >> 1;
                     }
                     7 => {
-                        self.v[0xF] = if vy > vx { 1 } else { 0 };
-                        self.v[x] = vy - vx;
+                        let (res, carry) = vy.overflowing_sub(vx);
+                        self.v[0xF] = if carry { 1 } else { 0 };
+                        self.v[x] = res;
                     }
                     0xE => {
                         self.v[0xF] = vx & 1;
@@ -184,9 +185,8 @@ impl Interpreter {
                 ProgramCounterAction::Next
             },
             0xB => {
-                let nnn_u16 = nnn as u16;
-                let v0_u16 = self.v[0] as u16;
-                ProgramCounterAction::Jump(nnn_u16 + v0_u16)
+                let v0_usize = self.v[0] as usize;
+                ProgramCounterAction::Jump(nnn + v0_usize)
             },
             0xC => {
                 let rand_u8 = rand::random::<u8>();
@@ -203,7 +203,7 @@ impl Interpreter {
                     // 0 -> 8 columns
                     for column in 0..8 {
                         // ex. sprite_row_data 1100 0110
-                        if sprite_row_data & (0x80 >> column) == 1 {
+                        if sprite_row_data & (0x80 >> column) != 0 {
                             let x = ((vx as u16)+column) as usize % DISPLAY_WIDTH;
                             let y = ((vy as u16)+(row as u16)) as usize % DISPLAY_HEIGHT; 
 
@@ -324,18 +324,23 @@ impl Interpreter {
                 ProgramCounterAction::Halt
             }
         };
+
+        println!("{:#04X} at pc: {}", opcode, self.pc);
+
+        
         match inc {
             ProgramCounterAction::Jump(delta) => self.pc += delta,
             ProgramCounterAction::Next => { 
                 self.pc += 2;
-                println!("{} at pc: {}", opcode, self.pc);
             },
             ProgramCounterAction::NoOp => {},
             ProgramCounterAction::Halt => {
                 // @todo: dbg + error handling
-                eprintln!("")
+                panic!("HALT OPCODE.")
+
             }
         }
+        
 
         
     }

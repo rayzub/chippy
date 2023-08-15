@@ -12,6 +12,11 @@ use sdl2::keyboard::Keycode;
 pub const START_MEM_LOC: usize = 0x200; // 512th index
 
 
+pub struct Config { 
+    scale_factor: u32,
+    debugger: bool,
+}
+
 fn main() {
     let matches = Command::new("Chippy - Chip8 Emulator")
                            .version("0.1.0")
