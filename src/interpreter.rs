@@ -47,9 +47,7 @@ impl Interpreter {
     }
 
     pub fn tick(&mut self) {
-        for _ in 0..15 {
-            self.execute();
-        }
+        self.execute();
 
         if self.dt > 0 {
             self.dt -= 1;

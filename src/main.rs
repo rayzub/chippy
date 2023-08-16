@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime, Instant};
 
 pub const START_MEM_LOC: usize = 0x200; // 512th index
 const FRAME_RATE: Duration = Duration::from_millis(16);
-const IX_RATE: Duration = Duration::from_millis(4);
+const IX_RATE: Duration = Duration::from_millis(1);
 
 
 pub struct Config { 
